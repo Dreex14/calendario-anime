@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://graphql.anilist.co https://api.jikan.moe https://myanimelist.net https://api.mymemory.translated.net; base-uri 'none'; object-src 'none'">
+<title>Calendario Anime</title>
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header class="barra">
+  <div class="marca">
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ACEFDC"/><stop offset="1" stop-color="#57C8BB"/></linearGradient></defs>
+      <rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lg)"/>
+      <rect x="11" y="17" width="42" height="36" rx="6" fill="#102B34"/>
+      <rect x="20" y="11" width="6" height="11" rx="2.5" fill="#102B34"/>
+      <rect x="38" y="11" width="6" height="11" rx="2.5" fill="#102B34"/>
+      <rect x="15" y="25" width="34" height="3" rx="1.5" fill="#83DDCB"/>
+      <path d="M28 32 41 39 28 47Z" fill="#C6FFEE" stroke="#C6FFEE" stroke-width="2" stroke-linejoin="round"/>
+    </svg>
+    <span class="nombre">Calendario <b>Anime</b></span>
+  </div>
+  <nav class="nav" id="nav">
+    <button data-seccion="calendario"><i data-i="calendario"></i><span>Calendario</span></button>
+    <button data-seccion="explorar"><i data-i="explorar"></i><span>Explorar</span></button>
+    <button data-seccion="lista"><i data-i="marcador"></i><span>Mi lista</span></button>
+  </nav>
+  <div class="barra-der" id="barraDer"></div>
+</header>
+
+<main id="vista"></main>
+
+<div class="capa" id="capa" hidden>
+  <div class="ficha" id="ficha" role="dialog" aria-modal="true"></div>
+</div>
+<div class="aviso" id="aviso" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
