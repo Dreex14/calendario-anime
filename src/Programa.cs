@@ -102,10 +102,12 @@ namespace CalendarioAnime
                 if (!string.Equals(antigua, destino, StringComparison.OrdinalIgnoreCase))
                     try { Directory.Delete(antigua, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             LoadLibrary(Path.Combine(destino, "WebView2Loader.dll"));
+            // Solo se resuelven las dos bibliotecas de WebView2 cuya huella se acaba de comprobar.
             AppDomain.CurrentDomain.AssemblyResolve += (s, e) =>
             {
-                var ruta = Path.Combine(destino, new AssemblyName(e.Name).Name + ".dll");
-                return File.Exists(ruta) ? Assembly.LoadFrom(ruta) : null;
+                var nombre = new AssemblyName(e.Name).Name;
+                if (nombre != "Microsoft.Web.WebView2.Core" && nombre != "Microsoft.Web.WebView2.WinForms") return null;
+                return Assembly.LoadFrom(Path.Combine(destino, nombre + ".dll"));
             };
         }
     }
@@ -130,8 +132,15 @@ namespace CalendarioAnime
         public Ventana()
         {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            cliente = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate });
+            // Sin redirecciones automáticas: así una respuesta nunca puede llevar a un sitio fuera de la lista permitida.
+            cliente = new HttpClient(new HttpClientHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+                AllowAutoRedirect = false,
+                UseCookies = false
+            });
             cliente.Timeout = TimeSpan.FromSeconds(20);
+            cliente.MaxResponseContentBufferSize = 8 * 1024 * 1024;
             cliente.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) CalendarioAnime/2.0");
 
             Text = Programa.Nombre;
@@ -242,6 +251,10 @@ namespace CalendarioAnime
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsGeneralAutofillEnabled = false;
             core.Settings.IsPasswordAutosaveEnabled = false;
+            core.Settings.AreHostObjectsAllowed = false;
+            // La aplicación no necesita cámara, micrófono, ubicación ni notificaciones, ni descarga archivos.
+            core.PermissionRequested += (s, e) => e.State = CoreWebView2PermissionState.Deny;
+            core.DownloadStarting += (s, e) => e.Cancel = true;
             core.AddWebResourceRequestedFilter(Origen + "*", CoreWebView2WebResourceContext.All);
             core.WebResourceRequested += (s, e) => ServirArchivo(entorno, e);
             core.NewWindowRequested += (s, e) => { e.Handled = true; Abrir(e.Uri); };
@@ -249,7 +262,11 @@ namespace CalendarioAnime
             {
                 if (!e.Uri.StartsWith(Origen, StringComparison.OrdinalIgnoreCase)) { e.Cancel = true; Abrir(e.Uri); }
             };
-            core.WebMessageReceived += async (s, e) => await Atender(e.WebMessageAsJson);
+            // Solo se atienden mensajes de la propia interfaz.
+            core.WebMessageReceived += async (s, e) =>
+            {
+                if (e.Source.StartsWith(Origen, StringComparison.OrdinalIgnoreCase)) await Atender(e.WebMessageAsJson);
+            };
             core.Navigate(Origen + "index.html");
         }
 

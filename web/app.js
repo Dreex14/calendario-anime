@@ -4,6 +4,15 @@
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const espera = ms => new Promise(r => setTimeout(r, ms));
+// Valores seguros para atributos style con datos externos: solo colores #rgb/#rrggbb y URLs https bien formadas.
+const colorSeguro = c => /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : 'transparent';
+function urlCssSegura(u) {
+  try {
+    const url = new URL(String(u || ''));
+    // Comillas, barras invertidas y espacios se codifican para que no puedan cerrar el url("…").
+    return url.protocol === 'https:' ? `url("${url.href.replace(/["'\\\s()]/g, c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase())}")` : 'none';
+  } catch (e) { return 'none'; }
+}
 
 const ICONOS = {
   calendario: '<rect x="3" y="4.5" width="18" height="16.5" rx="3.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/>',
@@ -495,7 +504,7 @@ function tarjetaEpisodio(x, ahora) {
   const dif = x.t - ahora;
   const cuando = dif <= 0 ? 'Emitido' : dif < 86400 * 2 ? relativo(dif) : '';
   return `<article class="episodio ${mio ? 'mio' : ''} ${dif <= 0 ? 'emitido' : ''}" data-id="${x.id}">
-    <div class="mini" style="background:${esc(x.color || '')}"><img src="${esc(x.portada)}" alt="" loading="lazy" decoding="async"></div>
+    <div class="mini" style="background:${colorSeguro(x.color)}"><img src="${esc(x.portada)}" alt="" loading="lazy" decoding="async"></div>
     <div class="datos">
       <div class="cuando"><b>${fmtHora.format(new Date(x.t * 1000))}</b>${cuando ? `<span>${cuando}</span>` : ''}</div>
       <h3 title="${esc(x.titulo)}">${esc(x.titulo)}</h3>
@@ -799,7 +808,7 @@ function tarjetaAnime(m) {
   const anio = m.seasonYear || (m.startDate && m.startDate.year) || '';
   const meta = [m.status === 'RELEASING' ? '<span class="punto"></span>En emisión' : '', FORMATOS[m.format] || '', m.status !== 'RELEASING' ? anio : '',
     m.episodes && m.format !== 'MOVIE' ? m.episodes + ' ep.' : ''].filter(Boolean).join(' · ');
-  return `<article class="tarjeta" data-id="${m.id}" style="background-color:${esc((m.coverImage && m.coverImage.color) || '')}">
+  return `<article class="tarjeta" data-id="${m.id}" style="background-color:${colorSeguro(m.coverImage && m.coverImage.color)}">
     <img src="${esc(m.coverImage.extraLarge || m.coverImage.large)}" alt="" loading="lazy" decoding="async">
     <div class="insignias"><span>${nota ? `<span class="insignia nota">${ico('estrella', 'lleno')}${nota}</span>` : ''}</span>
       <span style="display:flex;gap:4px">${fav ? `<span class="insignia fav">${ico('corazon', 'lleno')}</span>` : ''}${est && LISTA_ESTADOS[est] ? `<span class="insignia estado">${LISTA_ESTADOS[est]}</span>` : ''}</span></div>
@@ -871,13 +880,15 @@ function vistaLista() {
 }
 function tarjetaLista(k, e) {
   const est = estadoDe(e), fav = favDe(e);
-  const vistos = e.mal && e.mal.vistos, total = e.total;
-  const meta = [e.emision ? '<span class="punto"></span>En emisión' : '', FORMATOS[e.formato] || e.formato || '', !e.emision && e.anio ? e.anio : '',
+  // Estos datos vienen de MyAnimeList, de Jikan o del HTML del perfil: los números se fuerzan a número y el texto se escapa.
+  const num = v => { const n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0; };
+  const vistos = e.mal ? num(e.mal.vistos) : 0, total = num(e.total), anio = num(e.anio), notaMal = e.mal ? num(e.mal.nota) : 0;
+  const meta = [e.emision ? '<span class="punto"></span>En emisión' : '', esc(FORMATOS[e.formato] || e.formato || ''), !e.emision && anio ? anio : '',
     est === 'viendo' && vistos ? (total ? `${vistos}/${total} ep.` : `${vistos} vistos`) : (total && e.formato !== 'MOVIE' ? total + ' ep.' : '')].filter(Boolean).join(' · ');
   // La barra de episodios vistos solo tiene sentido con los datos de MyAnimeList; los añadidos a mano no la llevan.
-  const progreso = est === 'viendo' && total && e.mal ? `<div class="progreso"><span style="width:${Math.min(100, (vistos || 0) / total * 100)}%"></span></div>` : '';
-  const nota = e.mal && e.mal.nota ? `<span class="insignia nota">${ico('estrella', 'lleno')}${e.mal.nota}</span>` : '';
-  const atributo = e.idAl ? `data-id="${e.idAl}"` : `data-mal="${e.idMal}"`;
+  const progreso = est === 'viendo' && total && e.mal ? `<div class="progreso"><span style="width:${Math.min(100, vistos / total * 100)}%"></span></div>` : '';
+  const nota = notaMal ? `<span class="insignia nota">${ico('estrella', 'lleno')}${notaMal}</span>` : '';
+  const atributo = num(e.idAl) ? `data-id="${num(e.idAl)}"` : `data-mal="${num(e.idMal)}"`;
   return `<article class="tarjeta" ${atributo} title="${esc(e.titulo)}">
     <img src="${esc(e.portada)}" alt="" loading="lazy" decoding="async">
     <div class="insignias"><span>${nota}</span><span style="display:flex;gap:4px">${fav && pestanaLista !== 'favoritos' ? `<span class="insignia fav">${ico('corazon', 'lleno')}</span>` : ''}${pestanaLista === 'favoritos' && est && LISTA_ESTADOS[est] ? `<span class="insignia estado">${LISTA_ESTADOS[est]}</span>` : ''}</span></div>
@@ -967,7 +978,7 @@ function pintarFicha(m) {
   const sinopsis = limpiarSinopsis(m.description);
   ficha.innerHTML = `
     <button class="cerrar" id="cerrarFicha" title="Cerrar (Esc)">${ico('x')}</button>
-    <div class="banner" style="background-image:url('${esc(m.bannerImage || m.coverImage.extraLarge)}');${m.bannerImage ? '' : 'filter:blur(18px) saturate(1.2);transform:scale(1.2)'}"></div>
+    <div class="banner" style="background-image:${esc(urlCssSegura(m.bannerImage || m.coverImage.extraLarge))};${m.bannerImage ? '' : 'filter:blur(18px) saturate(1.2);transform:scale(1.2)'}"></div>
     <div class="cuerpo">
       <div class="lado">
         <div class="portada"><img src="${esc(m.coverImage.extraLarge || m.coverImage.large)}" alt=""></div>
